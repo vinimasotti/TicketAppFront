@@ -1,0 +1,305 @@
+<!-- HTML 5 standards -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Ticket Purchase</title>
+    <!-- link to bootstrap CSS to get the templates -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- CSS styling -->
+    <style>
+        body {
+            background-color: #6f6c6cc9;
+            font-family: 'Arial', sans-serif;
+            color: #333;
+        }
+
+        .header,
+        .footer {
+            background-color: #343a40;
+            color: white;
+            padding: 10px 0;
+        }
+
+        .container {
+            margin-top: 50px;
+        }
+
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .card-body {
+            background-color: #ffffff;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .card-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .buy-ticket {
+            background-color: #6c757d;
+            border-color: #6c757d;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .buy-ticket:hover {
+            background-color: #5a6268;
+        }
+
+        .buy-ticket:disabled {
+            background-color: #adb5bd;
+            cursor: not-allowed;
+        }
+
+        .comments-container {
+            margin-top: 15px;
+        }
+
+        .comment-card {
+            background-color: #e9ecef;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .comment-card p {
+            margin-bottom: 5px;
+        }
+
+        .btn-delete-comment {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .btn-delete-comment:hover {
+            background-color: #c82333;
+        }
+
+        .new-comment-btn {
+            background-color: #17a2b8;
+            color: white;
+            border-radius: 10px;
+            padding: 8px 15px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .new-comment-btn:hover {
+            background-color: #138496;
+        }
+
+        .new-comment-textarea {
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #ced4da;
+        }
+    </style>
+    <!-- end of the head section -->
+</head>
+
+<!-- start of the body section -->
+
+<body>
+
+    <header class="header text-center">
+        <h1>Event Ticket Portal</h1>
+        <h3>Software as a Service Solution to Purchase Tickets</h3>
+    </header>
+
+    <!-- main content -->
+    <div class="container">
+        <h4 class="text-center text-white mb-5">Upcoming Events</h4>
+
+        <!-- event container -->
+        <div class="text-center" id="event-container">
+        </div>
+    </div>
+
+    <!-- footer -->
+    <footer class="footer text-center">
+        <p>&copy; 2024/2025 National College of Ireland</p>
+    </footer>
+
+    <!-- JavaScript section -->
+    <script>
+        const apiUrl = 'http://127.0.0.1:3000/'; //URL to get JSON data
+
+        //fetchs events
+        async function fetchEvents() {
+            try { //try-catch is a good code practice
+                const response = await fetch(apiUrl + 'events');
+                const events = await response.json();
+                displayEvents(events);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // function to display all events
+        function displayEvents(events) {
+            const container = document.getElementById('event-container');
+            container.innerHTML = ''; // Clear the container before adding events
+
+            events.forEach(event => {
+                const remainingTickets = event.remaining_tickets ?? event.total_tickets;
+                const price =
+                    remainingTickets <= event.total_tickets * 0.1
+                        ? (event.price * 1.1).toFixed(2) // Increase price by 10% when 10% tickets are left
+                        : event.price;
+
+                const eventCard = `
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">${event.name}</h5>
+              <p class="card-text">${event.description}</p>
+              <p class="card-text"><strong>Price:</strong> $${price}</p>
+              <p class="card-text"><strong>Remaining Tickets:</strong> ${remainingTickets}</p>
+              <button class="buy-ticket" data-id="${event.id}" ${remainingTickets === 0 ? 'disabled' : ''}>
+                Buy Ticket
+              </button>
+
+              <!-- add comments section on the frontend -->
+              <div class="comments-container mt-4">
+                <h6>Comments:</h6>
+                <div id="comments-${event.id}">
+                  <!-- Comments will be loaded here -->
+                </div>
+                <textarea id="new-comment-${event.id}" class="new-comment-textarea form-control" placeholder="Add a comment" rows="3"></textarea>
+                <button class="new-comment-btn mt-2" onclick="addComment(${event.id})">Add Comment</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+                container.innerHTML += eventCard;
+
+                // load comments for each event id
+                loadComments(event.id);
+            });
+
+            // add functionallity to the buttons
+            document.querySelectorAll('.buy-ticket').forEach(button => {
+                button.addEventListener('click', () => buyTicket(button.dataset.id));
+            });
+        }
+
+        // fetch comments
+        async function loadComments(eventId) {
+            try {
+                const response = await fetch(apiUrl + `events/${eventId}/comments`);
+                const comments = await response.json();
+                displayComments(eventId, comments);
+            } catch (error) {
+                console.error('Error fetching comments:', error);
+            }
+        }
+
+        // display comments for each event id
+        function displayComments(eventId, comments) {
+            const container = document.getElementById(`comments-${eventId}`);
+            container.innerHTML = ''; // Clear previous comments
+
+            comments.forEach(comment => {
+                const commentCard = `
+          <div class="comment-card d-flex justify-content-between">
+            <p class="mb-0"><strong>${comment.user_name}</strong>: ${comment.content}</p>
+            <button class="btn-delete-comment" onclick="deleteComment(${eventId}, ${comment.id})">Delete</button>
+          </div>
+        `;
+                container.innerHTML += commentCard;
+            });
+        }
+
+        // function to add a new comment
+        async function addComment(eventId) {
+            const content = document.getElementById(`new-comment-${eventId}`).value;
+            const userName = prompt('Enter your name:'); // prompt to add username
+
+            if (!content || !userName) {
+                alert('Comment and user name are required!');
+                return;
+            }
+
+            try {
+                const response = await fetch(apiUrl + `events/${eventId}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content, user_name: userName }),
+                });
+
+                if (response.ok) {
+                    document.getElementById(`new-comment-${eventId}`).value = ''; // Clear comment input
+                    loadComments(eventId); 
+                } else {
+                    alert('Failed to add comment.');
+                }
+            } catch (error) {
+                console.error('Error, try again', error);
+            }
+        }
+
+        // delete a comment
+        async function deleteComment(eventId, commentId) {
+            try {
+                const response = await fetch(apiUrl + `events/${eventId}/comments/${commentId}`, {
+                    method: 'DELETE',
+                });
+
+                if (response.ok) {
+                    loadComments(eventId); // refresh comments 
+                } else {
+                    alert('Error, try again');
+                }
+            } catch (error) {
+                console.error('Error, try again', error);
+            }
+        }
+
+        // buy ticket for each event, method: POST
+        async function buyTicket(eventId) {
+            try {
+                const response = await fetch(apiUrl + `events/${eventId}/buy`, {
+                    method: 'POST',
+                });
+
+                if (response.ok) {
+                    alert('Ticket purchased! Thank you!');
+                    fetchEvents(); // refreshing events
+                } else {
+                    alert('Failed to purchase ticket, please try again');
+                }
+            } catch (error) {
+                console.error('Error', error);
+            }
+        }
+
+        // Initial load
+        fetchEvents();
+    </script>
+</body>
+
+</html>
